@@ -45,7 +45,12 @@ type Missing struct {
 // EpisodeFile - Stores struct of JSON response
 // https://github.com/Sonarr/Sonarr/wiki/EpisodeFile
 type EpisodeFile []struct {
-	Size    int64 `json:"size"`
+	Size				int64	`json:"size"`
+	RelativePath		string	`json:"relativePath"`
+	ReleaseGroup		string	`json:"releaseGroup"`
+	CustomFormatScore	int		`json:"customFormatScore"`
+	SeasonNumber		int		`json:"seasonNumber"`
+	SceneName			string	`json:"sceneName"`
 	Quality struct {
 		Quality struct {
 			ID         int    `json:"id"`

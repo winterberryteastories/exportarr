@@ -8,6 +8,7 @@ import (
 	"github.com/onedr0p/exportarr/internal/arr/config"
 	"github.com/onedr0p/exportarr/internal/arr/model"
 	"github.com/prometheus/client_golang/prometheus"
+	"strconv"
 	"go.uber.org/zap"
 )
 
@@ -28,6 +29,7 @@ type sonarrCollector struct {
 	episodeDownloadedMetric  *prometheus.Desc  // Total number of downloaded episodes
 	episodeMissingMetric     *prometheus.Desc  // Total number of missing episodes
 	episodeQualitiesMetric   *prometheus.Desc  // Total number of episodes by quality
+	episodeFileInfo          *prometheus.Desc  // All info for episode files
 	errorMetric              *prometheus.Desc  // Error Description for use with InvalidMetric
 }
 
@@ -124,6 +126,12 @@ func NewSonarrCollector(conf *config.ArrConfig) *sonarrCollector {
 			[]string{"quality"},
 			prometheus.Labels{"url": conf.URL},
 		),
+		episodeFileInfo: prometheus.NewDesc(
+			"sonarr_episode_file_info",
+			"All info for episode files",
+			[]string{"RelativePath", "SceneName", "Quality", "ReleaseGroup", "CustomFormatScore"},
+			prometheus.Labels{"url": conf.URL},
+		),
 		errorMetric: prometheus.NewDesc(
 			"sonarr_collector_error",
 			"Error while collecting metrics",
@@ -149,6 +157,7 @@ func (collector *sonarrCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- collector.episodeDownloadedMetric
 	ch <- collector.episodeMissingMetric
 	ch <- collector.episodeQualitiesMetric
+	ch <- collector.episodeFileInfo
 }
 
 func (collector *sonarrCollector) Collect(ch chan<- prometheus.Metric) {
@@ -233,6 +242,10 @@ func (collector *sonarrCollector) Collect(ch chan<- prometheus.Metric) {
 				if e.Quality.Quality.Name != "" {
 					episodesQualities[e.Quality.Quality.Name]++
 				}
+
+				ch <- prometheus.MustNewConstMetric(collector.episodeFileInfo, prometheus.GaugeValue, float64(1),
+					e.RelativePath, e.SceneName, e.Quality.Quality.Name, e.ReleaseGroup, strconv.Itoa(e.CustomFormatScore),
+				)
 			}
 
 			episode := model.Episode{}
