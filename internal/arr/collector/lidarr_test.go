@@ -13,51 +13,41 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestQueueCollect(t *testing.T) {
-	var tests = []struct {
-		name   string
-		config *config.ArrConfig
-		path   string
+const lidarr_test_fixtures_path = "../test_fixtures/lidarr/"
+
+func newTestLidarrServer(t *testing.T, fn func(http.ResponseWriter, *http.Request)) (*httptest.Server, error) {
+	return test_util.NewTestServer(t, lidarr_test_fixtures_path, fn)
+}
+
+func TestLidarrCollect(t *testing.T) {
+	tests := []struct {
+		name                  string
+		config                *config.ArrConfig
+		expected_metrics_file string
 	}{
 		{
-			name: "radarr",
-			config: &config.ArrConfig{
-				App:        "radarr",
-				ApiVersion: "v3",
-			},
-			path: "/api/v3/queue",
-		},
-		{
-			name: "sonarr",
-			config: &config.ArrConfig{
-				App:        "sonarr",
-				ApiVersion: "v3",
-			},
-			path: "/api/v3/queue",
-		},
-		{
-			name: "lidarr",
+			name: "basic",
 			config: &config.ArrConfig{
 				App:        "lidarr",
-				ApiVersion: "v1",
+				ApiVersion: "v3",
 			},
-			path: "/api/v1/queue",
+			expected_metrics_file: "expected_metrics.txt",
 		},
 		{
-			name: "readarr",
+			name: "additional_metrics",
 			config: &config.ArrConfig{
-				App:        "readarr",
-				ApiVersion: "v1",
+				App:                     "lidarr",
+				ApiVersion:              "v3",
+				EnableAdditionalMetrics: true,
 			},
-			path: "/api/v1/queue",
+			expected_metrics_file: "expected_metrics_extended.txt",
 		},
 	}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			require := require.New(t)
-			ts, err := test_util.NewTestSharedServer(t, func(w http.ResponseWriter, r *http.Request) {
-				require.Contains(r.URL.Path, tt.path)
+			ts, err := newTestLidarrServer(t, func(w http.ResponseWriter, r *http.Request) {
+				require.Contains(r.URL.Path, "/api/")
 			})
 			require.NoError(err)
 
@@ -66,14 +56,13 @@ func TestQueueCollect(t *testing.T) {
 			tt.config.URL = ts.URL
 			tt.config.ApiKey = test_util.API_KEY
 
-			collector := NewQueueCollector(tt.config)
+			collector := NewLidarrCollector(tt.config)
+			require.NoError(err)
 
-			b, err := os.ReadFile(test_util.COMMON_FIXTURES_PATH + "expected_queue_metrics.txt")
+			b, err := os.ReadFile(lidarr_test_fixtures_path + tt.expected_metrics_file)
 			require.NoError(err)
 
 			expected := strings.ReplaceAll(string(b), "SOMEURL", ts.URL)
-			expected = strings.ReplaceAll(expected, "APP", tt.config.App)
-
 			f := strings.NewReader(expected)
 
 			require.NotPanics(func() {
@@ -84,7 +73,7 @@ func TestQueueCollect(t *testing.T) {
 	}
 }
 
-func TestQueueCollect_FailureDoesntPanic(t *testing.T) {
+func TestLidarrCollect_FailureDoesntPanic(t *testing.T) {
 	require := require.New(t)
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -96,7 +85,7 @@ func TestQueueCollect_FailureDoesntPanic(t *testing.T) {
 		URL:    ts.URL,
 		ApiKey: test_util.API_KEY,
 	}
-	collector := NewQueueCollector(config)
+	collector := NewRadarrCollector(config)
 
 	f := strings.NewReader("")
 
